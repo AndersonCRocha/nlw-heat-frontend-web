@@ -1,36 +1,70 @@
-import styles from "./styles.module.scss";
+import { useEffect, useState } from "react";
+import io from "socket.io-client";
+import { api } from "../../services/api";
 
 import logoImg from "../../assets/logo.svg";
 
+import styles from "./styles.module.scss";
+interface IMessage {
+  id: string;
+  text: string;
+  user: {
+    name: string;
+    avatar_url: string;
+  };
+}
+
+const messagesQueue: IMessage[] = [];
+
+const socket = io(import.meta.env.VITE_APP_BACKEND_URL);
+
+socket.on("messages:new", (newMessage) => {
+  messagesQueue.push(newMessage);
+});
+
 export function MessageList() {
+  const [messages, setMessages] = useState<IMessage[]>([]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (messagesQueue.length > 0) {
+        setMessages((prevState) =>
+          [messagesQueue[0], prevState[0], prevState[1]].filter(Boolean)
+        );
+
+        messagesQueue.shift();
+      }
+    }, 3000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    api.get<IMessage[]>("/messages/last3").then(({ data }) => {
+      setMessages(data);
+    });
+  }, []);
+
   return (
     <div className={styles.messageListWrapper}>
       <img src={logoImg} alt="DoWhile 2021" />
 
       <ul className={styles.messageList}>
-        {Array(3)
-          .fill(0)
-          .map(() => (
-            <li className={styles.message}>
-              <p className={styles.messageContent}>
-                Lorem Ipsum is simply dummy text of the printing and typesetting
-                industry. Lorem Ipsum has been the industry's standard dummy
-                text ever since the 1500s, when an unknown printer took a galley
-                of type and scrambled it to make a type specimen book.
-              </p>
+        {messages.map(({ id, text, user }) => (
+          <li key={id} className={styles.message}>
+            <p className={styles.messageContent}>{text}</p>
 
-              <div className={styles.messageUser}>
-                <div className={styles.userImage}>
-                  <img
-                    src="https://github.com/andersoncrocha.png"
-                    alt="Anderson Rocha"
-                  />
-                </div>
-
-                <span>Anderson Rocha</span>
+            <div className={styles.messageUser}>
+              <div className={styles.userImage}>
+                <img src={user.avatar_url} alt={user.name} />
               </div>
-            </li>
-          ))}
+
+              <span>{user.name}</span>
+            </div>
+          </li>
+        ))}
       </ul>
     </div>
   );
